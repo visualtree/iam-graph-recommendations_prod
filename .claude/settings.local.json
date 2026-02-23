@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /c/FalainaFundas/GenAI/iam_graph_recommendations_prod/artifacts/*.joblib)",
+      "Bash(curl -s http://localhost:8080/health)",
+      "Bash(python -c \":*)",
+      "Bash(curl -s -X POST http://localhost:8080/predict -H \"Content-Type: application/json\" -d \"{\"\"user_id\"\": 54, \"\"top_n\"\": 5, \"\"initial_candidates\"\": 100}\")",
+      "Bash(taskkill /F /IM python.exe /T)",
+      "Bash(taskkill /F /IM uvicorn.exe /T)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill /F /PID 82672 /PID 64440)",
+      "Bash(xargs -r -I{} taskkill //F //PID {} sleep 3 netstat -ano)"
+    ]
+  }
+}

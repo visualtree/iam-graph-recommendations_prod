@@ -1,0 +1,21 @@
+# Core Data Science Libraries
+pandas
+numpy
+scikit-learn
+
+# Database Connectors
+sqlalchemy
+pyodbc
+neo4j
+
+# Machine Learning & Explainability
+xgboost
+optuna
+shap
+joblib
+
+# FastAPI Serving Layer
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-dotenv>=1.0.1
+python-json-logger>=2.0.7

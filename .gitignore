@@ -1,0 +1,40 @@
+# Python cache/build
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment and secrets
+.env
+.env.*
+
+# Project outputs and heavy generated artifacts
+artifacts/
+artifacts - Copy/
+test_outputs/
+shap_outputs/
+shap_force_plot_*.html
+
+# Streamlit/runtime
+.streamlit/secrets.toml
+

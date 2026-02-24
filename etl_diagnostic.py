@@ -3,12 +3,15 @@
 import pandas as pd
 from sqlalchemy import create_engine
 from urllib.parse import quote_plus
-
-# Configuration
-SQL_DB_HOST, SQL_DB_USER, SQL_DB_PASS, SQL_DB_NAME = 'localhost', 'sa', '@bcd1234', 'F_IACM_Demo'
+from ml_pipeline import config
 
 def get_sql_engine():
-    conn_str = f"mssql+pyodbc://{SQL_DB_USER}:{quote_plus(SQL_DB_PASS)}@{SQL_DB_HOST}/{SQL_DB_NAME}?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes"
+    config.require_sql_config()
+    conn_str = (
+        f"mssql+pyodbc://{config.SQL_DB_USER}:{quote_plus(config.SQL_DB_PASS)}"
+        f"@{config.SQL_DB_HOST}/{config.SQL_DB_NAME}"
+        "?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes"
+    )
     return create_engine(conn_str)
 
 def diagnose_etl_filtering():

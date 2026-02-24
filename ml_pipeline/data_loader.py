@@ -6,6 +6,7 @@ from . import config
 
 def get_neo4j_driver():
     """Creates and verifies a Neo4j database driver instance."""
+    config.require_neo4j_config()
     driver = GraphDatabase.driver(config.NEO4J_URI, auth=(config.NEO4J_USER, config.NEO4J_PASS))
     driver.verify_connectivity()
     return driver

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Analysis and comparison components for Streamlit application
 """
 
@@ -18,14 +18,14 @@ from .prediction_engine import calculate_peer_insights
 def display_technical_deep_dive():
     """Display technical explanations with real-time calculations from actual data"""
     
-    st.markdown("### 🔬 Technical Deep Dive: How Our AI Actually Works")
+    st.markdown("###  Technical Deep Dive: How Our AI Actually Works")
     st.markdown("*Real-time analysis from your actual data*")
     
     # Get real data for calculations
     graph_dfs = st.session_state.models_data['graph_dfs']
     embeddings_df = st.session_state.models_data['embeddings_df']
     
-    tab1, tab2, tab3, tab4 = st.tabs(["🧠 Real-Time Semantic Analysis", "📈 Live Pattern Discovery", "⚡ Actual Performance Metrics", "📈 Actual Embedding Explanations"])
+    tab1, tab2, tab3, tab4 = st.tabs([" Real-Time Semantic Analysis", " Live Pattern Discovery", " Actual Performance Metrics", " Actual Embedding Explanations"])
     
     with tab1:
         display_semantic_analysis(graph_dfs, embeddings_df)
@@ -47,7 +47,7 @@ def display_technical_deep_dive():
 # def display_semantic_analysis(graph_dfs, embeddings_df):
     # """Display real-time semantic analysis - CORRECTED VERSION"""
     
-    # st.markdown("#### 🎯 Live User-Entitlement Matching Analysis")
+    # st.markdown("####  Live User-Entitlement Matching Analysis")
     
     # col1, col2 = st.columns([3, 2])
     
@@ -170,7 +170,7 @@ def classify_embeddings_correctly(embeddings_df, graph_dfs):
 def display_semantic_analysis(graph_dfs, embeddings_df):
     """Display semantic analysis with VERIFIED user/entitlement classification"""
     
-    st.markdown("#### 🎯 Live User-Entitlement Matching Analysis")
+    st.markdown("####  Live User-Entitlement Matching Analysis")
     
     col1, col2 = st.columns([3, 2])
     
@@ -225,9 +225,9 @@ Embedding Dimension: {embedding_dim}
 Total Embeddings: {len(embeddings_df):,}
 
 VERIFIED CLASSIFICATION:
-✅ User Embeddings: {len(user_embeddings)} (cross-checked with users table)
-✅ Entitlement Embeddings: {len(ent_embeddings)} (cross-checked with entitlements table)
-❓ Other Entities: {len(unknown_embeddings)} (orgs, roles, systems, etc.)
+ User Embeddings: {len(user_embeddings)} (cross-checked with users table)
+ Entitlement Embeddings: {len(ent_embeddings)} (cross-checked with entitlements table)
+ Other Entities: {len(unknown_embeddings)} (orgs, roles, systems, etc.)
 
 Sample Vector Stats:
   - Mean: {embedding_mean:.4f}
@@ -242,7 +242,7 @@ Sample Vector Stats:
             
             # Show what those "other entities" might be
             if len(unknown_embeddings) > 0:
-                with st.expander("🔍 What are the 'Other Entities'?", expanded=False):
+                with st.expander(" What are the 'Other Entities'?", expanded=False):
                     # Analyze unknown embedding patterns
                     unknown_ids = unknown_embeddings['originalId'].tolist()
                     numeric_unknowns = [uid for uid in unknown_ids if isinstance(uid, (int, float))]
@@ -256,7 +256,7 @@ Sample Vector Stats:
                         if numeric_unknowns:
                             st.markdown("Sample IDs:")
                             for uid in numeric_unknowns[:5]:
-                                st.text(f"• {uid}")
+                                st.text(f" {uid}")
                         st.markdown("*Likely: Historical users, organizations, or system entities*")
                     
                     with col_b:
@@ -265,7 +265,7 @@ Sample Vector Stats:
                         if string_unknowns:
                             st.markdown("Sample IDs:")
                             for uid in string_unknowns[:5]:
-                                st.text(f"• {uid}")
+                                st.text(f" {uid}")
                         st.markdown("*Likely: System codes, intermediate nodes, or composite entities*")
             
             st.markdown("##### Step 3: User-Entitlement Matching Process")
@@ -281,7 +281,7 @@ Sample Vector Stats:
             - Entitlement `14_1` has embedding based on which users typically need that access
             - High similarity = User 1's profile matches typical users of entitlement 14_1
             
-            **Quality Check:** ✅ We have embeddings for {len(user_embeddings)}/{len(user_ids)} users 
+            **Quality Check:**  We have embeddings for {len(user_embeddings)}/{len(user_ids)} users 
             and {len(ent_embeddings)}/{len(entitlement_ids)} entitlements in your system.
             """)
         else:
@@ -293,7 +293,7 @@ Sample Vector Stats:
 def analyze_unknown_embeddings(embeddings_df, graph_dfs):
     """Analyze what the unknown embeddings might represent"""
     
-    st.markdown("### 🔍 Mystery Embeddings Analysis")
+    st.markdown("###  Mystery Embeddings Analysis")
     
     user_ids = set(graph_dfs['users']['id'].tolist())
     entitlement_ids = set(graph_dfs['entitlements']['id'].tolist())
@@ -312,8 +312,8 @@ def analyze_unknown_embeddings(embeddings_df, graph_dfs):
         string_unknowns = [uid for uid in unknown_list if isinstance(uid, str)]
         
         st.markdown("**Type Breakdown:**")
-        st.markdown(f"• Numeric IDs: {len(numeric_unknowns)}")
-        st.markdown(f"• String IDs: {len(string_unknowns)}")
+        st.markdown(f" Numeric IDs: {len(numeric_unknowns)}")
+        st.markdown(f" String IDs: {len(string_unknowns)}")
     
     with col2:
         st.markdown("**Possible Explanations:**")
@@ -341,15 +341,15 @@ def analyze_unknown_embeddings(embeddings_df, graph_dfs):
         other_entities_found['Endpoints'] = len(endpoint_matches)
     
     if other_entities_found:
-        st.markdown("### ✅ Mystery Solved!")
+        st.markdown("###  Mystery Solved!")
         st.markdown("**Unknown embeddings identified as:**")
         for entity_type, count in other_entities_found.items():
             if count > 0:
-                st.markdown(f"• **{entity_type}**: {count} embeddings")
+                st.markdown(f" **{entity_type}**: {count} embeddings")
         
         remaining_unknown = len(unknown_ids) - sum(other_entities_found.values())
         if remaining_unknown > 0:
-            st.markdown(f"• **Still Unknown**: {remaining_unknown} embeddings")
+            st.markdown(f" **Still Unknown**: {remaining_unknown} embeddings")
     
     # Show samples
     with st.expander("Sample Unknown IDs"):
@@ -358,7 +358,7 @@ def analyze_unknown_embeddings(embeddings_df, graph_dfs):
 def analyze_embedding_id_patterns(embeddings_df, graph_dfs):
     """Analyze the actual patterns in embedding IDs"""
     
-    st.markdown("### 🔍 Embedding ID Pattern Analysis")
+    st.markdown("###  Embedding ID Pattern Analysis")
     
     # Get actual IDs from tables
     user_ids = set(graph_dfs['users']['id'].tolist())
@@ -376,22 +376,22 @@ def analyze_embedding_id_patterns(embeddings_df, graph_dfs):
         st.metric("User ID Matches", len(user_overlap))
         st.markdown("**Sample User IDs in Embeddings:**")
         for uid in list(user_overlap)[:5]:
-            st.text(f"• {uid}")
+            st.text(f" {uid}")
     
     with col2:
         st.metric("Entitlement ID Matches", len(ent_overlap))
         st.markdown("**Sample Entitlement IDs in Embeddings:**")
         for eid in list(ent_overlap)[:5]:
-            st.text(f"• {eid}")
+            st.text(f" {eid}")
     
     with col3:
         st.metric("Unknown IDs", len(unknown_ids))
         st.markdown("**Sample Unknown IDs:**")
         for ukid in list(unknown_ids)[:5]:
-            st.text(f"• {ukid}")
+            st.text(f" {ukid}")
     
     # Pattern analysis
-    st.markdown("#### 📊 Pattern Analysis")
+    st.markdown("####  Pattern Analysis")
     
     patterns = {
         "Underscore in embeddings": embeddings_df['originalId'].astype(str).str.contains('_').sum(),
@@ -405,7 +405,7 @@ def analyze_embedding_id_patterns(embeddings_df, graph_dfs):
 def display_live_user_entitlement_analysis():
     """Display actual user-entitlement analysis from current predictions"""
     
-    st.markdown("##### 📊 Live User-Entitlement Analysis")
+    st.markdown("#####  Live User-Entitlement Analysis")
     
     # Show actual similarity scores from current predictions if available
     if st.session_state.current_predictions:
@@ -429,7 +429,7 @@ def display_live_user_entitlement_analysis():
             # Display actual similarity scores
             st.markdown("**Real Similarity Scores:**")
             for name, sim in zip(names, similarities):
-                st.markdown(f"• **{name}**: {sim:.3f}")
+                st.markdown(f" **{name}**: {sim:.3f}")
             
             # Create chart showing actual similarities
             fig = go.Figure(go.Bar(
@@ -455,19 +455,19 @@ def display_live_user_entitlement_analysis():
             - **Based on actual** access patterns in your data
             """)
         else:
-            st.info("🔄 Generate predictions to see actual similarity analysis")
+            st.info("Generate predictions to see actual similarity analysis")
     else:
-        st.info("🔄 Generate predictions to see real-time user-entitlement matching")
+        st.info("Generate predictions to see real-time user-entitlement matching")
 
 def display_actual_embedding_explanation():
     """Explain what our embeddings actually represent"""
     
-    st.markdown("#### 🔬 What Our Embeddings Actually Capture")
+    st.markdown("####  What Our Embeddings Actually Capture")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("##### 👤 User Embeddings")
+        st.markdown("#####  User Embeddings")
         st.markdown("""
         **Represent user access behavior:**
         - Which systems they currently use
@@ -479,11 +479,11 @@ def display_actual_embedding_explanation():
         - High values for SAP-related dimensions
         - High values for management tool dimensions
         - Low values for developer tool dimensions
-        → Suggests management/business user profile
+         Suggests management/business user profile
         """)
     
     with col2:
-        st.markdown("##### 🔐 Entitlement Embeddings")
+        st.markdown("#####  Entitlement Embeddings")
         st.markdown("""
         **Represent entitlement user profiles:**
         - Which types of users typically have this access
@@ -495,10 +495,10 @@ def display_actual_embedding_explanation():
         - High values for management dimensions
         - High values for financial system dimensions  
         - Low values for technical dimensions
-        → Suggests business/finance management access
+         Suggests business/finance management access
         """)
     
-    st.markdown("##### 🎯 The Matching Process")
+    st.markdown("#####  The Matching Process")
     st.markdown("""
     **When we calculate user-entitlement similarity:**
     1. **User profile** (based on current access) is compared to
@@ -512,7 +512,7 @@ def display_actual_embedding_explanation():
 def display_live_similarity_matrix():
     """Display live similarity matrix from current predictions"""
     
-    st.markdown("##### 📊 Live Similarity Matrix")
+    st.markdown("#####  Live Similarity Matrix")
     
     # Calculate real similarity matrix from current predictions if available
     if st.session_state.current_predictions:
@@ -562,12 +562,12 @@ def display_live_similarity_matrix():
         else:
             st.info("Generate predictions to see live similarity analysis")
     else:
-        st.info("🔄 Generate predictions to see real-time similarity calculations")
+        st.info("Generate predictions to see real-time similarity calculations")
 
 def display_pattern_discovery(graph_dfs):
     """Display live pattern discovery from actual data"""
     
-    st.markdown("#### 🤖 Live Pattern Discovery from Your Data")
+    st.markdown("####  Live Pattern Discovery from Your Data")
     
     col1, col2 = st.columns(2)
     
@@ -691,7 +691,7 @@ Users with <10 accesses: {len(access_distribution[access_distribution < 10])}
 def display_performance_validation():
     """Display real performance validation"""
     
-    st.markdown("#### ✅ Real Performance Validation")
+    st.markdown("####  Real Performance Validation")
     
     col1, col2 = st.columns(2)
     
@@ -704,7 +704,7 @@ def display_performance_validation():
 def display_live_model_performance():
     """Display live model performance metrics"""
     
-    st.markdown("##### 🎯 Live Model Performance")
+    st.markdown("##### Live Model Performance")
     
     # Calculate performance from current predictions if available
     if st.session_state.current_predictions:
@@ -720,7 +720,7 @@ Pipeline Efficiency:
   Filtering Efficiency: {live_stats['filtering_efficiency']:.1f}%
 
 Confidence Distribution:
-  High (≥80%): {live_stats['high_confidence_count']} predictions
+  High (>=80%): {live_stats['high_confidence_count']} predictions
   Medium (60-80%): {live_stats['medium_confidence_count']} predictions  
   Low (<60%): {live_stats['low_confidence_count']} predictions
   
@@ -729,7 +729,7 @@ Average Confidence: {live_stats['avg_confidence']:.1%}
             
             # Create confidence distribution
             confidence_data = {
-                'Level': ['High (≥80%)', 'Medium (60-80%)', 'Low (<60%)'],
+                'Level': ['High (>=80%)', 'Medium (60-80%)', 'Low (<60%)'],
                 'Count': [live_stats['high_confidence_count'], live_stats['medium_confidence_count'], live_stats['low_confidence_count']],
                 'Color': ['green', 'orange', 'red']
             }
@@ -751,12 +751,12 @@ Average Confidence: {live_stats['avg_confidence']:.1%}
             st.plotly_chart(fig, use_container_width=True)
     
     else:
-        st.info("🔄 Generate predictions to see real-time performance metrics")
+        st.info("Generate predictions to see real-time performance metrics")
 
 def display_processing_analysis():
     """Display real processing speed analysis"""
     
-    st.markdown("##### ⚡ Real Processing Speed Analysis")
+    st.markdown("#####  Real Processing Speed Analysis")
     
     # Calculate real data complexity metrics
     processing_metrics = calculate_real_processing_metrics()
@@ -826,12 +826,12 @@ def create_scalability_chart(processing_metrics):
 def create_model_explainability_showcase():
     """Showcase explainable AI capabilities with real examples from current predictions"""
     
-    st.markdown("### 🔍 Explainable AI: Complete Transparency")
+    st.markdown("###  Explainable AI: Complete Transparency")
     st.markdown("*Real-time analysis from your current predictions*")
     
     # Check if we have current predictions to analyze
     if not st.session_state.current_predictions:
-        st.info("🔄 Generate predictions first to see real-time explainability analysis")
+        st.info("Generate predictions first to see real-time explainability analysis")
         return
     
     predictions_df = st.session_state.current_predictions['predictions']
@@ -858,13 +858,13 @@ def display_confidence_comparison(high_conf_pred, low_conf_pred):
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("#### 🟢 Highest Confidence Prediction")
+        st.markdown("####  Highest Confidence Prediction")
         st.markdown(f"**{high_conf_pred.get('Name', 'Unknown')} (Score: {high_conf_pred['FinalScore']:.1%})**")
         
         display_prediction_details(high_conf_pred, st.session_state.selected_user, "high")
     
     with col2:
-        st.markdown("#### 🔴 Lowest Confidence Prediction") 
+        st.markdown("####  Lowest Confidence Prediction") 
         st.markdown(f"**{low_conf_pred.get('Name', 'Unknown')} (Score: {low_conf_pred['FinalScore']:.1%})**")
         
         display_prediction_details(low_conf_pred, st.session_state.selected_user, "low")
@@ -873,7 +873,7 @@ def display_confidence_comparison(high_conf_pred, low_conf_pred):
     score_diff = high_conf_pred['FinalScore'] - low_conf_pred['FinalScore']
     
     st.markdown("---")
-    st.markdown("#### 🧠 Real-Time Risk Assessment Analysis")
+    st.markdown("####  Real-Time Risk Assessment Analysis")
     
     st.markdown(f"""
     **Live Comparative Analysis:**
@@ -901,7 +901,7 @@ def display_prediction_details(prediction, user_id, confidence_type):
                 with_access = data['with_access']
                 
                 peer_type_display = peer_type.replace('_', ' ').title()
-                icon = "📈" if confidence_type == "high" else "📉"
+                icon = "" if confidence_type == "high" else ""
                 st.markdown(f"- {icon} **{peer_type_display}**: {adoption_rate:.1%} adoption ({with_access}/{total_peers} peers)")
     else:
         st.info("Peer analysis not available for this prediction")
@@ -916,7 +916,7 @@ def display_confidence_distribution(predictions_df):
         med_conf = len(confidence_scores[(confidence_scores >= 0.6) & (confidence_scores < 0.8)])
         low_conf = len(confidence_scores[confidence_scores < 0.6])
         
-        confidence_ranges = ['High (≥80%)', 'Medium (60-80%)', 'Low (<60%)']
+        confidence_ranges = ['High (>=80%)', 'Medium (60-80%)', 'Low (<60%)']
         prediction_counts = [high_conf, med_conf, low_conf]
         risk_levels = ['LOW', 'MEDIUM', 'HIGH']
         colors = ['green', 'orange', 'red']
@@ -941,10 +941,10 @@ def display_confidence_distribution(predictions_df):
 def create_comparison_analysis():
     """Create comparison with real-time data from current session"""
     
-    st.markdown("### ⚖️ ML vs Traditional RDBMS Approach")
+    st.markdown("### Pipeline Comparison (Measured ML vs Estimated SQL)")
     st.markdown("*Live analysis based on your current data and predictions*")
     
-    tab1, tab2, tab3 = st.tabs(["📊 Technical Superiority", "🎯 Live Performance Data", "💰 Business Impact"])
+    tab1, tab2, tab3 = st.tabs(["Technical View", "Live Performance Data", "Business Estimates"])
     
     with tab1:
         display_technical_superiority()
@@ -958,7 +958,7 @@ def create_comparison_analysis():
 def display_technical_superiority():
     """Display technical superiority analysis"""
     
-    st.markdown("#### 🚀 How Graph Embeddings + Node2Vec Outperform RDBMS")
+    st.markdown("#### Graph + ML Processing Comparison")
     
     # Get real complexity from actual data
     complexity_metrics = get_data_complexity_metrics()
@@ -968,7 +968,7 @@ def display_technical_superiority():
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("##### 🔍 Real Graph Complexity Analysis")
+            st.markdown("##### Real Graph Complexity Analysis")
             
             total_relationships = complexity_metrics['total_relationships']
             tables_count = 6  # Estimated tables needed
@@ -981,53 +981,65 @@ Graph Structure:
   Entitlements: {complexity_metrics['total_entitlements']:,}
   Relationships: {total_relationships:,}
   
-SQL Challenge:
+SQL Baseline (Estimated):
   Required JOINs: {tables_count}+ tables
   Estimated Time: {estimated_sql_time:.0f} seconds
-  Query Maintenance: NIGHTMARE
+  Query Maintenance: Higher operational complexity
   
-Neo4j + ML Solution:
+Graph + ML Pipeline:
   Path Traversal: Single graph operation
   Processing Time: ~{processing_metrics['ml_total']:.1f} seconds
-  Maintenance: Self-adapting
+  Maintenance: Centralized pipeline logic
             """, language='python')
         
         with col2:
-            st.markdown("##### ⚡ Real Processing Speed Comparison")
+            st.markdown("##### Real Processing Speed Comparison")
             
-            # Create speed comparison with real data
-            operations = ['User Context', 'Peer Discovery', 'Pattern Analysis', 'Risk Assessment', 'Final Ranking']
-            
-            # Use actual processing breakdown
-            ml_breakdown = processing_metrics['ml_breakdown']
-            sql_breakdown = processing_metrics['sql_breakdown']
-            
-            ml_times = [0.5, ml_breakdown['peer_analysis'], ml_breakdown['feature_engineering'], 0.3, 0.2]
-            sql_times = [15, sql_breakdown['peer_discovery'], sql_breakdown['aggregations'], sql_breakdown['result_processing'], 10]
-            
+            operations = ["User Context", "Peer Discovery", "Pattern Analysis", "Risk Assessment", "Final Ranking"]
+
+            ml_breakdown = processing_metrics["ml_breakdown"]
+            sql_breakdown = processing_metrics["sql_breakdown"]
+
+            ml_user_context = ml_breakdown.get("user_context", ml_breakdown.get("candidate_generation", 0.0))
+            ml_peer_discovery = ml_breakdown.get("peer_analysis", 0.0)
+            ml_pattern = ml_breakdown.get("candidate_features", ml_breakdown.get("feature_engineering", 0.0))
+            ml_risk = ml_breakdown.get("candidate_scoring", 0.0) + ml_breakdown.get("reranker_scoring", ml_breakdown.get("model_inference", 0.0))
+            ml_final_rank = ml_breakdown.get("feature_alignment", 0.0) + ml_breakdown.get("post_processing", 0.0)
+
+            sql_complex = sql_breakdown.get("complex_joins", 0.0)
+            sql_times = [
+                sql_complex * 0.25,
+                sql_breakdown.get("peer_discovery", 0.0),
+                sql_breakdown.get("aggregations", 0.0),
+                sql_breakdown.get("result_processing", 0.0),
+                sql_complex * 0.15,
+            ]
+            ml_times = [ml_user_context, ml_peer_discovery, ml_pattern, ml_risk, ml_final_rank]
+
             speed_data = {
-                'Operation': operations,
-                'SQL Time (sec)': sql_times,
-                'ML Time (sec)': ml_times,
-                'Improvement': [f"{sql/ml:.0f}x" for sql, ml in zip(sql_times, ml_times)]
+                "Operation": operations,
+                "SQL Time (sec)": sql_times,
+                "ML Time (sec)": ml_times,
+                "Ratio (SQL/ML)": [f"{(sql / ml):.1f}x" if ml > 0 else "N/A" for sql, ml in zip(sql_times, ml_times)],
             }
             
             speed_df = pd.DataFrame(speed_data)
             st.dataframe(speed_df, use_container_width=True)
             
             total_sql_time = sum(sql_times)
-            total_ml_time = sum(ml_times)
+            total_ml_time = processing_metrics["ml_total"] if processing_metrics.get("ml_total") else sum(ml_times)
             
             st.metric(
-                "Overall Speed Improvement", 
-                f"{total_sql_time // total_ml_time:.0f}x Faster",
-                f"{total_sql_time:.0f}s → {total_ml_time:.1f}s"
+                "Relative Speed Ratio",
+                f"{(total_sql_time / total_ml_time):.1f}x" if total_ml_time > 0 else "N/A",
+                f"{total_sql_time:.0f}s -> {total_ml_time:.1f}s"
             )
+            st.caption(f"ML timing source: {processing_metrics.get('mode', 'estimated')} | SQL timing source: estimated model (not measured query runtime)")
 
 def display_live_performance_comparison():
     """Display live performance comparison"""
     
-    st.markdown("#### 📈 Live Performance Analysis")
+    st.markdown("####  Live Performance Analysis")
     
     live_stats = get_live_performance_stats()
     processing_metrics = calculate_real_processing_metrics()
@@ -1035,7 +1047,7 @@ def display_live_performance_comparison():
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("##### 🎯 Current Session Performance")
+        st.markdown("#####  Current Session Performance")
         
         if live_stats:
             # Calculate real performance metrics
@@ -1055,7 +1067,7 @@ Pipeline Efficiency:
   Final Recommendations: {live_stats['final_count']}
   Filtering Efficiency: {filtering_ratio:.1f}%
   
-Quality Assessment: {"EXCELLENT" if avg_confidence > 0.8 else "GOOD" if avg_confidence > 0.6 else "MODERATE"}
+Confidence Concentration: {"High" if avg_confidence > 0.8 else "Medium" if avg_confidence > 0.6 else "Low"}
             """, language='python')
             
             # Compare with estimated RDBMS performance
@@ -1063,17 +1075,17 @@ Quality Assessment: {"EXCELLENT" if avg_confidence > 0.8 else "GOOD" if avg_conf
             ml_improvement = (avg_confidence - estimated_rdbms_accuracy) / estimated_rdbms_accuracy * 100
             
             st.markdown(f"""
-            **Accuracy Comparison:**
-            - **Traditional RDBMS**: ~65% (rule-based estimation)
-            - **Our ML Pipeline**: {avg_confidence:.1%} (live measurement)
-            - **Improvement**: +{ml_improvement:.0f}% accuracy gain
+            **Confidence vs Baseline (Context):**
+            - **Baseline (estimated)**: ~65% (rule-based)
+            - **ML pipeline confidence**: {avg_confidence:.1%} (live measurement)
+            - **Delta vs baseline**: {ml_improvement:+.0f}% (context only, not outcome accuracy)
             """)
         
         else:
-            st.info("🔄 Generate predictions to see live performance analysis")
+            st.info("Generate predictions to see live performance analysis")
     
     with col2:
-        st.markdown("##### ⚡ Real-Time Processing Analysis")
+        st.markdown("#####  Real-Time Processing Analysis")
         
         if processing_metrics:
             # Display actual processing breakdown
@@ -1107,7 +1119,7 @@ Quality Assessment: {"EXCELLENT" if avg_confidence > 0.8 else "GOOD" if avg_conf
 def display_business_impact_analysis():
     """Display real business impact analysis"""
     
-    st.markdown("#### 💰 Real Business Impact Analysis")
+    st.markdown("#### Business Estimate Summary")
     
     # Calculate business impact based on actual data
     business_impact = calculate_business_impact()
@@ -1116,7 +1128,7 @@ def display_business_impact_analysis():
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("##### 📊 Efficiency Gains (Your Organization)")
+            st.markdown("#####  Efficiency Gains (Your Organization)")
             
             efficiency_data = {
                 'Metric': ['Manual Review Time', 'With ML Assistance', 'Time Saved', 'Annual Cost Savings'],
@@ -1129,16 +1141,16 @@ def display_business_impact_analysis():
             st.dataframe(impact_df, use_container_width=True)
         
         with col2:
-            st.markdown("##### 🎯 ROI Calculation (Live Data)")
+            st.markdown("##### Cost/Benefit Estimate (Live Data)")
             
             st.code(f"""
-# ROI Analysis for {business_impact["active_users"]:,} Active Users
+# Cost/Benefit Estimate for {business_impact["active_users"]:,} Active Users
 Implementation Cost: ${business_impact["implementation_cost"]:,}
 Annual Savings: ${business_impact["annual_savings"]:,}
 
-Break-even: {business_impact["months_to_break_even"]:.1f} months
-Year 1 ROI: {business_impact["year_1_roi"]:.0f}%
-3-year NPV: ${business_impact["annual_savings"] * 3 - business_impact["implementation_cost"]:,}
+Estimated break-even: {business_impact["months_to_break_even"]:.1f} months
+Estimated year-1 ROI: {business_impact["year_1_roi"]:.0f}%
+Estimated 3-year NPV: ${business_impact["annual_savings"] * 3 - business_impact["implementation_cost"]:,}
 
 Cost per User: ${business_impact["cost_per_user"]:.0f}
 Savings per User: ${business_impact["savings_per_user"]:.0f}/year
@@ -1169,3 +1181,7 @@ def create_roi_timeline_chart(business_impact):
     )
     
     st.plotly_chart(fig, use_container_width=True)
+
+
+
+

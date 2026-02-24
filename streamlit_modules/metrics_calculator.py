@@ -5,51 +5,86 @@ Real-time metrics calculations for Streamlit application
 import streamlit as st
 import pandas as pd
 
-def calculate_real_processing_metrics():
-    """Calculate processing metrics based on actual data size"""
-    if not st.session_state.models_loaded:
-        return None
-        
-    graph_dfs = st.session_state.models_data['graph_dfs']
-    
-    # Real data metrics
-    total_users = len(graph_dfs['users'])
-    total_entitlements = len(graph_dfs['entitlements'])
-    total_relationships = len(graph_dfs['entrecon'])
-    
-    # Calculate realistic processing times
+def _estimate_processing_metrics(graph_dfs):
+    """Fallback estimate used when no measured pipeline timing is available."""
+    total_users = len(graph_dfs["users"])
+    total_entitlements = len(graph_dfs["entitlements"])
+    total_relationships = len(graph_dfs["entrecon"])
+
     data_complexity_factor = max(1, total_relationships // 10000)
-    
-    # ML processing scales linearly
+
     ml_time = {
-        'candidate_generation': 0.5 * data_complexity_factor,
-        'feature_engineering': 1.0 * data_complexity_factor,
-        'model_inference': 0.3,  # Model inference is constant
-        'peer_analysis': 0.8 * data_complexity_factor,
-        'post_processing': 0.2
+        "candidate_generation": 0.5 * data_complexity_factor,
+        "feature_engineering": 1.0 * data_complexity_factor,
+        "model_inference": 0.3,
+        "peer_analysis": 0.8 * data_complexity_factor,
+        "post_processing": 0.2,
     }
-    
-    # SQL processing scales exponentially
+
     sql_complexity = len([k for k in graph_dfs.keys() if isinstance(graph_dfs[k], pd.DataFrame)])
     sql_time = {
-        'complex_joins': 15 * (sql_complexity ** 1.5),
-        'peer_discovery': 25 * data_complexity_factor * 2,
-        'aggregations': 20 * data_complexity_factor,
-        'result_processing': 10 * data_complexity_factor
+        "complex_joins": 15 * (sql_complexity ** 1.5),
+        "peer_discovery": 25 * data_complexity_factor * 2,
+        "aggregations": 20 * data_complexity_factor,
+        "result_processing": 10 * data_complexity_factor,
     }
-    
+
     return {
-        'ml_total': sum(ml_time.values()),
-        'sql_total': min(300, sum(sql_time.values())),  # Cap at 5 minutes
-        'data_factor': data_complexity_factor,
-        'ml_breakdown': ml_time,
-        'sql_breakdown': sql_time,
-        'complexity_metrics': {
-            'users': total_users,
-            'entitlements': total_entitlements,
-            'relationships': total_relationships,
-            'sql_tables': sql_complexity
-        }
+        "mode": "estimated",
+        "ml_total": sum(ml_time.values()),
+        "sql_total": min(300, sum(sql_time.values())),
+        "data_factor": data_complexity_factor,
+        "ml_breakdown": ml_time,
+        "sql_breakdown": sql_time,
+        "complexity_metrics": {
+            "users": total_users,
+            "entitlements": total_entitlements,
+            "relationships": total_relationships,
+            "sql_tables": sql_complexity,
+        },
+    }
+
+
+def calculate_real_processing_metrics():
+    """Return measured pipeline timing when available, otherwise estimated timing."""
+    if not st.session_state.models_loaded:
+        return None
+
+    graph_dfs = st.session_state.models_data["graph_dfs"]
+    estimated = _estimate_processing_metrics(graph_dfs)
+
+    current = st.session_state.get("current_predictions")
+    if not current:
+        return estimated
+
+    timings_ms = current.get("pipeline_timings_ms") or {}
+    total_ms = current.get("pipeline_total_ms")
+
+    if not timings_ms or total_ms is None:
+        return estimated
+
+    candidate_align_ms = timings_ms.get("candidate_align", 0.0)
+    reranker_align_ms = timings_ms.get("reranker_align", 0.0)
+
+    measured_ml_breakdown = {
+        "user_context": (timings_ms.get("candidate_filter", 0.0) + timings_ms.get("candidate_matrix", 0.0)) / 1000.0,
+        "candidate_features": timings_ms.get("candidate_features", 0.0) / 1000.0,
+        "candidate_scoring": timings_ms.get("candidate_score_rank", 0.0) / 1000.0,
+        "peer_analysis": timings_ms.get("reranker_features", 0.0) / 1000.0,
+        "reranker_scoring": timings_ms.get("reranker_score_rank", 0.0) / 1000.0,
+        "feature_alignment": (candidate_align_ms + reranker_align_ms) / 1000.0,
+    }
+
+    measured_component_ms = sum(timings_ms.values())
+    residual_ms = max(0.0, float(total_ms) - measured_component_ms)
+    if residual_ms > 0:
+        measured_ml_breakdown["other"] = residual_ms / 1000.0
+
+    return {
+        **estimated,
+        "mode": "measured",
+        "ml_total": float(total_ms) / 1000.0,
+        "ml_breakdown": measured_ml_breakdown,
     }
 
 def get_live_performance_stats():

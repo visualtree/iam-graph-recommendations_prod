@@ -218,6 +218,10 @@ def run_prediction_pipeline(
     t0 = time.perf_counter()
     pred_probs_rerank = artifacts['reranker_model'].predict_proba(X_rerank)[:, 1]
     top_candidates['FinalScore'] = pred_probs_rerank
+    # Keep reranker feature rows keyed by entitlement so downstream UI can align
+    # explanations with the final sorted recommendations.
+    X_rerank_scored = X_rerank.copy()
+    X_rerank_scored["EntitlementId"] = top_candidates["EntitlementId"].astype(str).values
 
     final_recs = top_candidates.sort_values('FinalScore', ascending=False).head(top_n)
     final_recs = final_recs.copy()
@@ -252,8 +256,12 @@ def run_prediction_pipeline(
         'total_candidates': len(candidate_ents_df),
         'stage1_count': len(top_candidates),
         'user_id': user_id,
+        'X_cand': X_cand,
         'X_rerank': X_rerank,
-        'artifacts': artifacts
+        'X_rerank_scored': X_rerank_scored,
+        'artifacts': artifacts,
+        'timings_ms': timings_ms,
+        'total_ms': total_ms,
     }
 
 

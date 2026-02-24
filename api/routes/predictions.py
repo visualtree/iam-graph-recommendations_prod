@@ -90,9 +90,13 @@ async def predict(
     )
 
     semaphore = get_semaphore()
-    start = time.perf_counter()
+    request_start = time.perf_counter()
+    queue_wait_ms = 0.0
+    compute_ms = 0.0
 
     async with semaphore:
+        queue_wait_ms = (time.perf_counter() - request_start) * 1000
+        compute_start = time.perf_counter()
         loop = asyncio.get_event_loop()
         try:
             results = await loop.run_in_executor(
@@ -119,6 +123,8 @@ async def predict(
                 safe_detail,
             )
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Prediction pipeline failed")
+        finally:
+            compute_ms = (time.perf_counter() - compute_start) * 1000
 
     if results is None:
         raise HTTPException(
@@ -126,7 +132,15 @@ async def predict(
             detail=f"User {body.user_id} has no unassigned entitlement candidates."
         )
 
-    duration_ms = (time.perf_counter() - start) * 1000
+    duration_ms = (time.perf_counter() - request_start) * 1000
+    logger.info(
+        "predict timing: request_id=%s user_id=%d queue_wait_ms=%.2f compute_ms=%.2f total_ms=%.2f",
+        request_id,
+        body.user_id,
+        queue_wait_ms,
+        compute_ms,
+        duration_ms,
+    )
 
     # Build lookup tables from artifacts for entitlement enrichment
     artifacts      = results["artifacts"]

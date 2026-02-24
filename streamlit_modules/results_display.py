@@ -168,72 +168,155 @@ def display_executive_view(predictions_df, selected_user_id):
                     else:
                         st.markdown("❌ **Limited organizational usage**")
 
+def _compute_reranker_contributions(predictions_data):
+    """Compute per-feature reranker contributions aligned to displayed predictions."""
+    X_rerank = predictions_data.get('reranker_features')
+    model = st.session_state.models_data.get('reranker_model')
+    if X_rerank is None or getattr(X_rerank, 'empty', True) or model is None:
+        return None
+    if not hasattr(model, 'get_booster'):
+        return None
+
+    try:
+        import xgboost as xgb
+        dmat = xgb.DMatrix(X_rerank.values, feature_names=list(X_rerank.columns))
+        contrib = model.get_booster().predict(dmat, pred_contribs=True)
+        return pd.DataFrame(contrib, columns=list(X_rerank.columns) + ['__bias__'])
+    except Exception:
+        return None
+
+
+def _display_outrank_delta_panel(rank_idx, predictions_df, contrib_df):
+    """Show why rank N outranked rank N+1 using contribution deltas."""
+    if rank_idx >= len(predictions_df) - 1:
+        return
+
+    current = predictions_df.iloc[rank_idx]
+    nxt = predictions_df.iloc[rank_idx + 1]
+    stage2_gap = float(current["FinalScore"]) - float(nxt["FinalScore"])
+
+    # API-mode fallback: contribution matrix is unavailable.
+    if contrib_df is None or rank_idx >= len(contrib_df) - 1:
+        st.markdown("#### Why This Outranked Next Option")
+        st.caption(
+            f"Compared with #{rank_idx + 2} {nxt.get('Name', 'Unknown')} | "
+            f"Stage-2 gap: {stage2_gap:.4f}"
+        )
+        st.caption("Feature-level contribution deltas are unavailable in API mode.")
+
+        fallback_df = pd.DataFrame(
+            [
+                {
+                    "Metric": "Stage 2 (FinalScore)",
+                    "Current": float(current.get("FinalScore", 0.0)),
+                    "Next": float(nxt.get("FinalScore", 0.0)),
+                    "Delta": stage2_gap,
+                },
+                {
+                    "Metric": "Stage 1 (CandidateScore)",
+                    "Current": float(current.get("CandidateScore", 0.0)),
+                    "Next": float(nxt.get("CandidateScore", 0.0)),
+                    "Delta": float(current.get("CandidateScore", 0.0)) - float(nxt.get("CandidateScore", 0.0)),
+                },
+            ]
+        )
+        st.dataframe(fallback_df, use_container_width=True, hide_index=True)
+        return
+
+    cur_c = contrib_df.iloc[rank_idx].drop(labels=['__bias__'], errors='ignore')
+    nxt_c = contrib_df.iloc[rank_idx + 1].drop(labels=['__bias__'], errors='ignore')
+    delta = cur_c - nxt_c
+
+    top_features = delta.abs().sort_values(ascending=False).head(6).index
+    panel_df = pd.DataFrame({
+        'Feature': top_features,
+        f'Current (#{rank_idx + 1})': cur_c[top_features].values,
+        f'Next (#{rank_idx + 2})': nxt_c[top_features].values,
+        'Delta': delta[top_features].values,
+    }).sort_values('Delta', ascending=False)
+
+    curr_logit = float(contrib_df.iloc[rank_idx].sum())
+    next_logit = float(contrib_df.iloc[rank_idx + 1].sum())
+
+    st.markdown('#### Why This Outranked Next Option')
+    st.caption(
+        f"Compared with #{rank_idx + 2} {nxt.get('Name', 'Unknown')} | "
+        f"Stage-2 gap: {stage2_gap:.4f} | "
+        f"logit gap: {(curr_logit - next_logit):.4f}"
+    )
+    st.caption('Positive delta supports current rank; negative delta supports next rank.')
+    st.dataframe(panel_df, use_container_width=True, hide_index=True)
+
+
 def display_detailed_view(predictions_df, selected_user_id, predictions_data, demo_mode):
-    """Display full detail view for technical audiences"""
-    
-    for idx, (_, pred) in enumerate(predictions_df.iterrows(), 1):
+    """Display full detail view for technical audiences."""
+    predictions_df = predictions_df.reset_index(drop=True)
+    contrib_df = _compute_reranker_contributions(predictions_data)
+    reranker_features = predictions_data.get('reranker_features')
+    has_local_feature_rows = (
+        reranker_features is not None
+        and not getattr(reranker_features, 'empty', True)
+    )
+
+    if demo_mode == 'Technical Deep Dive' and not has_local_feature_rows:
+        st.caption(
+            "Detailed per-feature SHAP panels are unavailable in API mode. "
+            "Switch backend to local/core for full feature-level explainability."
+        )
+
+    for idx, pred in predictions_df.iterrows():
+        rank = idx + 1
         with st.expander(
-            f"#{idx} • {pred.get('Name', 'Unknown Entitlement')} "
-            f"({pred.get('ApplicationCode', 'Unknown System')}) • "
+            f"#{rank} - {pred.get('Name', 'Unknown Entitlement')} "
+            f"({pred.get('ApplicationCode', 'Unknown System')}) - "
             f"Confidence: {pred['FinalScore']:.1%}",
-            expanded=(idx == 1)
+            expanded=(rank == 1)
         ):
-            
-            # Recommendation header
             col1, col2, col3 = st.columns([2, 1, 1])
-            
+
             with col1:
                 st.markdown(f"**Entitlement:** {pred.get('Name', 'N/A')}")
                 st.markdown(f"**System:** {pred.get('ApplicationCode', 'N/A')}")
                 if pred.get('Description'):
                     st.markdown(f"**Description:** {pred.get('Description')}")
-            
+
             with col2:
-                # Confidence gauge
                 confidence = pred['FinalScore']
                 if confidence >= 0.8:
-                    color = "🟢"
-                    level = "High"
+                    level = 'High'
                 elif confidence >= 0.6:
-                    color = "🟡" 
-                    level = "Medium"
+                    level = 'Medium'
                 else:
-                    color = "🔴"
-                    level = "Low"
-                
-                st.metric(f"{color} Confidence", f"{confidence:.1%}")
+                    level = 'Low'
+
+                st.metric('Confidence', f"{confidence:.1%}")
                 st.markdown(f"*{level} certainty*")
-            
+
             with col3:
-                # Stage scores
-                st.markdown("**Pipeline Scores:**")
+                st.markdown('**Pipeline Scores:**')
                 st.markdown(f"Stage 1: {pred.get('CandidateScore', 0):.3f}")
                 st.markdown(f"Stage 2: {pred['FinalScore']:.3f}")
-            
-            st.markdown("---")
-            
-            # Peer insights
+
+            st.markdown('---')
             display_peer_insights_detailed(selected_user_id, pred['EntitlementId'])
-            
-            # Show technical details only in technical mode
-            if demo_mode == "Technical Deep Dive":
-                st.markdown("---")
-                
-                # Model explanation
+
+            st.markdown('---')
+            _display_outrank_delta_panel(idx, predictions_df, contrib_df)
+
+            if demo_mode == 'Technical Deep Dive' and has_local_feature_rows:
+                st.markdown('---')
                 try:
-                    # Get the corresponding feature row
-                    feature_row = predictions_data['reranker_features'].iloc[idx-1]
-                    
+                    if idx >= len(reranker_features):
+                        continue
+                    feature_row = reranker_features.iloc[idx]
                     shap_explanation = generate_shap_explanation(
                         st.session_state.models_data['reranker_model'],
                         feature_row,
                         st.session_state.models_data['reranker_features'],
                         pred.get('Name', 'Unknown')
                     )
-                    
                     if shap_explanation is not None:
                         display_model_explanation(shap_explanation, pred.get('Name', 'Unknown'))
-                
                 except Exception as e:
                     st.warning(f"Could not generate detailed explanation: {str(e)}")
 

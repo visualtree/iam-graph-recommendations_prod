@@ -239,6 +239,103 @@ def _split_train_val(X, y):
     )
 
 
+def _build_user_splits(
+    labeled_df: pd.DataFrame,
+    out_dir: str,
+    val_ratio: float = 0.2,
+    test_ratio: float = 0.1,
+    seed: int = config.RANDOM_STATE,
+    min_users: int = 10,
+) -> dict:
+    """Create and persist user-disjoint train/val/test splits for locked evaluation."""
+    users = pd.Series(labeled_df["UserId"]).dropna().unique().tolist()
+    total_users = len(users)
+    if total_users < min_users:
+        return {
+            "status": "skipped",
+            "reason": "too_few_unique_users",
+            "total_users": total_users,
+        }
+
+    rng = random.Random(seed)
+    rng.shuffle(users)
+
+    n_test = max(1, int(total_users * test_ratio))
+    n_val = max(1, int(total_users * val_ratio))
+    n_train = total_users - n_val - n_test
+    if n_train <= 0:
+        return {
+            "status": "skipped",
+            "reason": "insufficient_users_for_split",
+            "total_users": total_users,
+            "val_users": n_val,
+            "test_users": n_test,
+        }
+
+    test_users = users[:n_test]
+    val_users = users[n_test:n_test + n_val]
+    train_users = users[n_test + n_val:]
+
+    splits = {
+        "status": "ok",
+        "seed": seed,
+        "val_ratio": val_ratio,
+        "test_ratio": test_ratio,
+        "total_users": total_users,
+        "train_users": train_users,
+        "val_users": val_users,
+        "test_users": test_users,
+    }
+
+    os.makedirs(out_dir, exist_ok=True)
+    split_path = os.path.join(out_dir, "user_splits.json")
+    with open(split_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "status": splits["status"],
+                "seed": seed,
+                "val_ratio": val_ratio,
+                "test_ratio": test_ratio,
+                "total_users": total_users,
+                "train_users": train_users,
+                "val_users": val_users,
+                "test_users": test_users,
+            },
+            f,
+            indent=2,
+        )
+    return splits
+
+
+def _split_by_users(X: pd.DataFrame, y: pd.Series, labeled_df: pd.DataFrame, splits: dict) -> dict:
+    train_users = set(splits.get("train_users", []))
+    val_users = set(splits.get("val_users", []))
+    test_users = set(splits.get("test_users", []))
+
+    train_mask = labeled_df["UserId"].isin(train_users).to_numpy()
+    val_mask = labeled_df["UserId"].isin(val_users).to_numpy()
+    test_mask = labeled_df["UserId"].isin(test_users).to_numpy()
+
+    return {
+        "X_train": X.loc[train_mask],
+        "y_train": y.loc[train_mask],
+        "X_val": X.loc[val_mask],
+        "y_val": y.loc[val_mask],
+        "X_test": X.loc[test_mask],
+        "y_test": y.loc[test_mask],
+    }
+
+
+def _evaluate_auc_on_split(model, X_split, y_split, split_name: str) -> dict:
+    if X_split is None or y_split is None or len(X_split) == 0:
+        return {"status": "skipped", "reason": "empty_split", "rows": 0}
+    if y_split.nunique() < 2:
+        return {"status": "skipped", "reason": "single_class", "rows": int(len(y_split))}
+    preds = model.predict_proba(X_split)[:, 1]
+    auc = roc_auc_score(y_split, preds)
+    return {"status": "ok", "rows": int(len(y_split)), "auc": float(auc)}
+
+
 def _aligned_labeled_df_for_features(labeled_df: pd.DataFrame, X: pd.DataFrame, model_name: str) -> pd.DataFrame:
     """Align labeled pairs to feature matrix row-count for downstream split diagnostics."""
     labeled_aligned = labeled_df.reset_index(drop=True)
@@ -333,6 +430,7 @@ def run_training() -> None:
     joblib.dump(embeddings_df, os.path.join(config.ARTIFACT_DIR, "embeddings.pkl"))
 
     labeled = _build_training_pairs(graph_dfs, hard_negative_ratio=0.5, neg_multiplier=2.0)
+    user_splits = _build_user_splits(labeled, out_dir=config.ARTIFACT_DIR)
 
     # Candidate model
     X_cand, y_cand, _ = feature_engineering.create_candidate_model_features(labeled.copy(), embeddings_df)
@@ -340,7 +438,19 @@ def run_training() -> None:
     if y_cand is None or X_cand.empty:
         raise RuntimeError("Candidate feature generation failed: empty matrix or labels")
 
-    Xc_train, Xc_val, yc_train, yc_val = _split_train_val(X_cand, y_cand)
+    labeled_cand = _aligned_labeled_df_for_features(labeled, X_cand, "candidate")
+    if user_splits.get("status") == "ok":
+        cand_split = _split_by_users(X_cand, y_cand, labeled_cand, user_splits)
+        Xc_train, yc_train = cand_split["X_train"], cand_split["y_train"]
+        Xc_val, yc_val = cand_split["X_val"], cand_split["y_val"]
+        Xc_test, yc_test = cand_split["X_test"], cand_split["y_test"]
+        if len(Xc_val) == 0 or yc_val.nunique() < 2 or yc_train.nunique() < 2:
+            print("WARN: Candidate user split invalid; falling back to random split")
+            Xc_train, Xc_val, yc_train, yc_val = _split_train_val(X_cand, y_cand)
+            Xc_test, yc_test = None, None
+    else:
+        Xc_train, Xc_val, yc_train, yc_val = _split_train_val(X_cand, y_cand)
+        Xc_test, yc_test = None, None
     print("Running Optuna for candidate model...")
     cand_study = optuna.create_study(direction="maximize")
     cand_study.optimize(
@@ -355,6 +465,7 @@ def run_training() -> None:
         cand_study.best_params,
         model_name="candidate_model",
     )
+    cand_test_metrics = _evaluate_auc_on_split(candidate_model, Xc_test, yc_test, "candidate_test")
     joblib.dump(candidate_model, os.path.join(config.ARTIFACT_DIR, "candidate_model.joblib"))
     joblib.dump(list(X_cand.columns), os.path.join(config.ARTIFACT_DIR, "candidate_model_features.joblib"))
 
@@ -372,7 +483,19 @@ def run_training() -> None:
     if y_rerank is None or X_rerank.empty:
         raise RuntimeError("Reranker feature generation failed: empty matrix or labels")
 
-    Xr_train, Xr_val, yr_train, yr_val = _split_train_val(X_rerank, y_rerank)
+    labeled_rerank = _aligned_labeled_df_for_features(labeled, X_rerank, "reranker")
+    if user_splits.get("status") == "ok":
+        rerank_split = _split_by_users(X_rerank, y_rerank, labeled_rerank, user_splits)
+        Xr_train, yr_train = rerank_split["X_train"], rerank_split["y_train"]
+        Xr_val, yr_val = rerank_split["X_val"], rerank_split["y_val"]
+        Xr_test, yr_test = rerank_split["X_test"], rerank_split["y_test"]
+        if len(Xr_val) == 0 or yr_val.nunique() < 2 or yr_train.nunique() < 2:
+            print("WARN: Reranker user split invalid; falling back to random split")
+            Xr_train, Xr_val, yr_train, yr_val = _split_train_val(X_rerank, y_rerank)
+            Xr_test, yr_test = None, None
+    else:
+        Xr_train, Xr_val, yr_train, yr_val = _split_train_val(X_rerank, y_rerank)
+        Xr_test, yr_test = None, None
     reranker_monotone_constraints = _build_monotone_constraints(
         list(X_rerank.columns),
         MONOTONE_POSITIVE_PEER_RATE_COLS,
@@ -405,10 +528,10 @@ def run_training() -> None:
         model_name="reranker_model",
         monotone_constraints=reranker_monotone_constraints,
     )
+    rerank_test_metrics = _evaluate_auc_on_split(reranker_model, Xr_test, yr_test, "reranker_test")
     rerank_train_auc = roc_auc_score(yr_train, reranker_model.predict_proba(Xr_train)[:, 1])
 
     # Leakage/overfitting diagnostic: user-disjoint holdout AUC for reranker
-    labeled_rerank = _aligned_labeled_df_for_features(labeled, X_rerank, "reranker")
     user_holdout_diag = _evaluate_user_holdout_auc(
         X_rerank.reset_index(drop=True),
         y_rerank.reset_index(drop=True),
@@ -434,9 +557,23 @@ def run_training() -> None:
         "best_candidate_params": cand_study.best_params,
         "best_reranker_params": rerank_study.best_params,
         "candidate_auc_validation": float(cand_auc),
+        "candidate_auc_test_user_split": cand_test_metrics,
         "reranker_auc_train_random_split": float(rerank_train_auc),
         "reranker_auc_validation_random_split": float(rerank_auc),
+        "reranker_auc_test_user_split": rerank_test_metrics,
         "reranker_user_holdout_diagnostic": user_holdout_diag,
+        "user_split_metadata": {
+            "status": user_splits.get("status"),
+            "total_users": user_splits.get("total_users"),
+            "val_ratio": user_splits.get("val_ratio"),
+            "test_ratio": user_splits.get("test_ratio"),
+            "train_users": len(user_splits.get("train_users", [])),
+            "val_users": len(user_splits.get("val_users", [])),
+            "test_users": len(user_splits.get("test_users", [])),
+            "path": os.path.join(config.ARTIFACT_DIR, "user_splits.json")
+            if user_splits.get("status") == "ok"
+            else None,
+        },
         "reranker_monotone_constraints_positive_cols": MONOTONE_POSITIVE_PEER_RATE_COLS,
         "reranker_monotone_constraints_vector": list(reranker_monotone_constraints),
     }

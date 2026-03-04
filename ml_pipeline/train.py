@@ -197,6 +197,7 @@ def _fit_xgb_classifier(
         tree_method=params.get("tree_method", "hist"),
         n_jobs=int(params.get("n_jobs", -1)),
         monotone_constraints=monotone_constraints,
+        scale_pos_weight=float(params["scale_pos_weight"]) if "scale_pos_weight" in params else None,
     )
     clf.fit(X_train, y_train, eval_set=[(X_val, y_val)])
     val_pred = clf.predict_proba(X_val)[:, 1]
@@ -213,6 +214,7 @@ def _optuna_objective(
     y_val,
     model_name: str,
     monotone_constraints: tuple[int, ...] | None = None,
+    scale_pos_weight: float | None = None,
 ):
     params = {
         "max_depth": trial.suggest_int("max_depth", 4, 12),
@@ -223,6 +225,8 @@ def _optuna_objective(
         "early_stopping_rounds": 50,
         "tree_method": "hist",
     }
+    if scale_pos_weight is not None and scale_pos_weight > 0:
+        params["scale_pos_weight"] = float(scale_pos_weight)
     _, auc = _fit_xgb_classifier(
         X_train, y_train, X_val, y_val, params, model_name, monotone_constraints=monotone_constraints
     )
@@ -452,6 +456,10 @@ def run_training() -> None:
     if y_cand is None or X_cand.empty:
         raise RuntimeError("Candidate feature generation failed: empty matrix or labels")
 
+    cand_pos = int((y_cand == 1).sum())
+    cand_neg = int((y_cand == 0).sum())
+    cand_spw = (cand_neg / max(1, cand_pos)) if cand_pos > 0 else None
+
     labeled_cand = _aligned_labeled_df_for_features(labeled, X_cand, "candidate")
     if user_splits.get("status") == "ok":
         cand_split = _split_by_users(X_cand, y_cand, labeled_cand, user_splits)
@@ -468,15 +476,26 @@ def run_training() -> None:
     print("Running Optuna for candidate model...")
     cand_study = optuna.create_study(direction="maximize")
     cand_study.optimize(
-        lambda trial: _optuna_objective(trial, Xc_train, yc_train, Xc_val, yc_val, "candidate_model"),
+        lambda trial: _optuna_objective(
+            trial,
+            Xc_train,
+            yc_train,
+            Xc_val,
+            yc_val,
+            "candidate_model",
+            scale_pos_weight=cand_spw,
+        ),
         n_trials=config.OPTUNA_CANDIDATE_TRIALS,
     )
+    cand_params = dict(cand_study.best_params)
+    if cand_spw is not None:
+        cand_params["scale_pos_weight"] = float(cand_spw)
     candidate_model, cand_auc = _fit_xgb_classifier(
         Xc_train,
         yc_train,
         Xc_val,
         yc_val,
-        cand_study.best_params,
+        cand_params,
         model_name="candidate_model",
     )
     cand_test_metrics = _evaluate_auc_on_split(candidate_model, Xc_test, yc_test, "candidate_test")
@@ -499,6 +518,10 @@ def run_training() -> None:
     X_rerank = X_rerank.apply(pd.to_numeric, errors="coerce").fillna(0.0)
     if y_rerank is None or X_rerank.empty:
         raise RuntimeError("Reranker feature generation failed: empty matrix or labels")
+
+    rerank_pos = int((y_rerank == 1).sum())
+    rerank_neg = int((y_rerank == 0).sum())
+    rerank_spw = (rerank_neg / max(1, rerank_pos)) if rerank_pos > 0 else None
 
     labeled_rerank = _aligned_labeled_df_for_features(labeled, X_rerank, "reranker")
     if user_splits.get("status") == "ok":
@@ -533,15 +556,19 @@ def run_training() -> None:
             yr_val,
             "reranker_model",
             monotone_constraints=reranker_monotone_constraints,
+            scale_pos_weight=rerank_spw,
         ),
         n_trials=config.OPTUNA_RERANKER_TRIALS,
     )
+    rerank_params = dict(rerank_study.best_params)
+    if rerank_spw is not None:
+        rerank_params["scale_pos_weight"] = float(rerank_spw)
     reranker_model, rerank_auc = _fit_xgb_classifier(
         Xr_train,
         yr_train,
         Xr_val,
         yr_val,
-        rerank_study.best_params,
+        rerank_params,
         model_name="reranker_model",
         monotone_constraints=reranker_monotone_constraints,
     )
@@ -574,8 +601,20 @@ def run_training() -> None:
         "code_version": os.getenv("GIT_COMMIT", "unknown"),
         "feature_count": int(X_rerank.shape[1]),
         "candidate_feature_count": int(X_cand.shape[1]),
-        "best_candidate_params": cand_study.best_params,
-        "best_reranker_params": rerank_study.best_params,
+        "best_candidate_params": cand_params,
+        "best_reranker_params": rerank_params,
+        "class_balance": {
+            "candidate": {
+                "pos": cand_pos,
+                "neg": cand_neg,
+                "scale_pos_weight": float(cand_spw) if cand_spw is not None else None,
+            },
+            "reranker": {
+                "pos": rerank_pos,
+                "neg": rerank_neg,
+                "scale_pos_weight": float(rerank_spw) if rerank_spw is not None else None,
+            },
+        },
         "candidate_auc_validation": float(cand_auc),
         "candidate_auc_test_user_split": cand_test_metrics,
         "candidate_calibration": {

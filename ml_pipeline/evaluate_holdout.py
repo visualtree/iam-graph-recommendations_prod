@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from ml_pipeline import feature_engineering
-from ml_pipeline.prediction_core import PredictionArtifacts, _hard_fail_feature_alignment
+from ml_pipeline.prediction_core import PredictionArtifacts, _hard_fail_feature_alignment, score_proba
 
 
 @dataclass
@@ -66,7 +66,11 @@ def _predict_with_visible_only(
         candidates_df.copy(), artifacts["embeddings_df"]
     )
     X_cand = _hard_fail_feature_alignment(X_cand, artifacts["candidate_features"], "candidate_eval")
-    cand_scores = artifacts["candidate_model"].predict_proba(X_cand)[:, 1]
+    cand_scores = score_proba(
+        artifacts["candidate_model"],
+        X_cand,
+        calibrator=artifacts.get("candidate_calibrator"),
+    )
     candidates_df["CandidateScore"] = cand_scores
     top_candidates = candidates_df.sort_values("CandidateScore", ascending=False).head(initial_candidates).copy()
     if top_candidates.empty:
@@ -91,7 +95,11 @@ def _predict_with_visible_only(
         peer_lookup_cache=peer_lookup,
     )
     X_rerank = _hard_fail_feature_alignment(X_rerank, artifacts["reranker_features"], "reranker_eval")
-    rerank_scores = artifacts["reranker_model"].predict_proba(X_rerank)[:, 1]
+    rerank_scores = score_proba(
+        artifacts["reranker_model"],
+        X_rerank,
+        calibrator=artifacts.get("reranker_calibrator"),
+    )
     top_candidates["FinalScore"] = rerank_scores
     final_recs = top_candidates.sort_values("FinalScore", ascending=False).head(top_n)
     return final_recs["EntitlementId"].astype(str).tolist()

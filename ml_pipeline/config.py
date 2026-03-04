@@ -22,6 +22,10 @@ OPTUNA_N_TRIALS = 30
 OPTUNA_CANDIDATE_TRIALS = 30
 OPTUNA_RERANKER_TRIALS  = 30
 
+# --- CALIBRATION ---
+# Options: "sigmoid" (Platt scaling) or "isotonic"
+CALIBRATION_METHOD = os.environ.get("CALIBRATION_METHOD", "sigmoid").lower()
+
 
 # --- XGBOOST BASE PARAMETERS ---
 XGB_PARAMS = {

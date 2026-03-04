@@ -44,8 +44,10 @@ class PredictionArtifacts:
             artifacts = {
                 'candidate_model':    joblib.load(os.path.join(d, 'candidate_model.joblib')),
                 'candidate_features': joblib.load(os.path.join(d, 'candidate_model_features.joblib')),
+                'candidate_calibrator': None,
                 'reranker_model':     joblib.load(os.path.join(d, 'reranker_model.joblib')),
                 'reranker_features':  joblib.load(os.path.join(d, 'reranker_model_features.joblib')),
+                'reranker_calibrator': None,
                 'embeddings_df':      joblib.load(os.path.join(d, 'embeddings.pkl')),
                 'graph_dfs': {
                     'users':        joblib.load(os.path.join(d, 'users.pkl')),
@@ -56,6 +58,12 @@ class PredictionArtifacts:
                     'designations': joblib.load(os.path.join(d, 'designations.pkl')),
                 }
             }
+            cand_cal_path = os.path.join(d, "candidate_calibrator.joblib")
+            rerank_cal_path = os.path.join(d, "reranker_calibrator.joblib")
+            if os.path.isfile(cand_cal_path):
+                artifacts["candidate_calibrator"] = joblib.load(cand_cal_path)
+            if os.path.isfile(rerank_cal_path):
+                artifacts["reranker_calibrator"] = joblib.load(rerank_cal_path)
             artifacts['peer_lookup'] = feature_engineering.build_peer_lookup_cache(artifacts['graph_dfs'])
             # Cap n_jobs to 1 to prevent thread oversubscription under concurrent requests
             for key in ('candidate_model', 'reranker_model'):
@@ -89,6 +97,13 @@ def _hard_fail_feature_alignment(X_df, expected_features, model_name="model"):
     X_ordered = X_df[exp].apply(pd.to_numeric, errors="coerce").fillna(0.0)
     logger.info("%s feature alignment OK; shape: %s", model_name, X_ordered.shape)
     return X_ordered
+
+
+def score_proba(model, X_df, calibrator=None):
+    """Return (optionally calibrated) positive-class probabilities."""
+    if calibrator is None:
+        return model.predict_proba(X_df)[:, 1]
+    return calibrator.predict_proba(X_df)[:, 1]
 
 
 def run_prediction_pipeline(
@@ -193,7 +208,11 @@ def run_prediction_pipeline(
 
     update_progress(6, 10, "Stage 1: Scoring candidates...")
     t0 = time.perf_counter()
-    pred_probs_cand = artifacts['candidate_model'].predict_proba(X_cand)[:, 1]
+    pred_probs_cand = score_proba(
+        artifacts['candidate_model'],
+        X_cand,
+        calibrator=artifacts.get("candidate_calibrator"),
+    )
     candidates_df['CandidateScore'] = pred_probs_cand
     top_candidates = candidates_df.sort_values('CandidateScore', ascending=False).head(initial_candidates)
     timings_ms["candidate_score_rank"] = (time.perf_counter() - t0) * 1000
@@ -216,7 +235,11 @@ def run_prediction_pipeline(
 
     update_progress(9, 10, "Stage 2: Final reranking...")
     t0 = time.perf_counter()
-    pred_probs_rerank = artifacts['reranker_model'].predict_proba(X_rerank)[:, 1]
+    pred_probs_rerank = score_proba(
+        artifacts['reranker_model'],
+        X_rerank,
+        calibrator=artifacts.get("reranker_calibrator"),
+    )
     top_candidates['FinalScore'] = pred_probs_rerank
     # Keep reranker feature rows keyed by entitlement so downstream UI can align
     # explanations with the final sorted recommendations.

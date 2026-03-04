@@ -12,6 +12,7 @@ import joblib
 import optuna
 import pandas as pd
 import xgboost as xgb
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 
@@ -336,6 +337,19 @@ def _evaluate_auc_on_split(model, X_split, y_split, split_name: str) -> dict:
     return {"status": "ok", "rows": int(len(y_split)), "auc": float(auc)}
 
 
+def _fit_calibrator(model, X_val, y_val, method: str) -> dict:
+    """Fit a probability calibrator on validation data (prefit base model)."""
+    if X_val is None or y_val is None or len(X_val) == 0:
+        return {"status": "skipped", "reason": "empty_split", "calibrator": None}
+    if y_val.nunique() < 2:
+        return {"status": "skipped", "reason": "single_class", "calibrator": None}
+
+    method = method if method in {"sigmoid", "isotonic"} else "sigmoid"
+    calibrator = CalibratedClassifierCV(model, method=method, cv="prefit")
+    calibrator.fit(X_val, y_val)
+    return {"status": "ok", "method": method, "calibrator": calibrator}
+
+
 def _aligned_labeled_df_for_features(labeled_df: pd.DataFrame, X: pd.DataFrame, model_name: str) -> pd.DataFrame:
     """Align labeled pairs to feature matrix row-count for downstream split diagnostics."""
     labeled_aligned = labeled_df.reset_index(drop=True)
@@ -466,6 +480,9 @@ def run_training() -> None:
         model_name="candidate_model",
     )
     cand_test_metrics = _evaluate_auc_on_split(candidate_model, Xc_test, yc_test, "candidate_test")
+    cand_cal = _fit_calibrator(candidate_model, Xc_val, yc_val, config.CALIBRATION_METHOD)
+    if cand_cal.get("status") == "ok":
+        joblib.dump(cand_cal["calibrator"], os.path.join(config.ARTIFACT_DIR, "candidate_calibrator.joblib"))
     joblib.dump(candidate_model, os.path.join(config.ARTIFACT_DIR, "candidate_model.joblib"))
     joblib.dump(list(X_cand.columns), os.path.join(config.ARTIFACT_DIR, "candidate_model_features.joblib"))
 
@@ -529,6 +546,9 @@ def run_training() -> None:
         monotone_constraints=reranker_monotone_constraints,
     )
     rerank_test_metrics = _evaluate_auc_on_split(reranker_model, Xr_test, yr_test, "reranker_test")
+    rerank_cal = _fit_calibrator(reranker_model, Xr_val, yr_val, config.CALIBRATION_METHOD)
+    if rerank_cal.get("status") == "ok":
+        joblib.dump(rerank_cal["calibrator"], os.path.join(config.ARTIFACT_DIR, "reranker_calibrator.joblib"))
     rerank_train_auc = roc_auc_score(yr_train, reranker_model.predict_proba(Xr_train)[:, 1])
 
     # Leakage/overfitting diagnostic: user-disjoint holdout AUC for reranker
@@ -558,9 +578,25 @@ def run_training() -> None:
         "best_reranker_params": rerank_study.best_params,
         "candidate_auc_validation": float(cand_auc),
         "candidate_auc_test_user_split": cand_test_metrics,
+        "candidate_calibration": {
+            "status": cand_cal.get("status"),
+            "method": cand_cal.get("method"),
+            "reason": cand_cal.get("reason"),
+            "path": os.path.join(config.ARTIFACT_DIR, "candidate_calibrator.joblib")
+            if cand_cal.get("status") == "ok"
+            else None,
+        },
         "reranker_auc_train_random_split": float(rerank_train_auc),
         "reranker_auc_validation_random_split": float(rerank_auc),
         "reranker_auc_test_user_split": rerank_test_metrics,
+        "reranker_calibration": {
+            "status": rerank_cal.get("status"),
+            "method": rerank_cal.get("method"),
+            "reason": rerank_cal.get("reason"),
+            "path": os.path.join(config.ARTIFACT_DIR, "reranker_calibrator.joblib")
+            if rerank_cal.get("status") == "ok"
+            else None,
+        },
         "reranker_user_holdout_diagnostic": user_holdout_diag,
         "user_split_metadata": {
             "status": user_splits.get("status"),

@@ -23,10 +23,15 @@ def _api_predict(user_id, top_n, candidates, endpoint_id=None):
     if endpoint_id is not None:
         payload["endpoint_id"] = int(endpoint_id)
 
+    api_token = os.environ.get("IAM_API_TOKEN", "").strip()
+    headers = {"Content-Type": "application/json"}
+    if api_token:
+        headers["X-API-Key"] = api_token
+
     request = urllib.request.Request(
         url=f"{base_url}/predict",
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         method="POST",
     )
     try:

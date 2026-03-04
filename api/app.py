@@ -77,6 +77,68 @@ def _safe_text(value: object) -> str:
     return str(value).encode("ascii", errors="backslashreplace").decode("ascii")
 
 
+def _is_truthy(value: str | None) -> bool:
+    return (value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _validate_runtime_config() -> None:
+    """
+    Validate runtime env configuration.
+
+    Behavior:
+    - Logs warnings/errors in all modes.
+    - Raises RuntimeError only when IAM_STRICT_ENV_VALIDATION=true.
+    """
+    strict = _is_truthy(os.environ.get("IAM_STRICT_ENV_VALIDATION"))
+    require_api_token = _is_truthy(os.environ.get("IAM_REQUIRE_API_TOKEN"))
+
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    workers_raw = os.environ.get("IAM_API_WORKERS", "4")
+    try:
+        workers = int(workers_raw)
+        if workers <= 0:
+            errors.append("IAM_API_WORKERS must be a positive integer.")
+    except ValueError:
+        errors.append("IAM_API_WORKERS must be an integer.")
+
+    api_port_raw = os.environ.get("API_PORT")
+    if api_port_raw:
+        try:
+            api_port = int(api_port_raw)
+            if api_port < 1 or api_port > 65535:
+                errors.append("API_PORT must be between 1 and 65535.")
+        except ValueError:
+            errors.append("API_PORT must be an integer.")
+
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    valid_levels = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"}
+    if log_level not in valid_levels:
+        errors.append(f"LOG_LEVEL must be one of: {', '.join(sorted(valid_levels))}.")
+
+    artifact_dir = os.environ.get("ARTIFACT_DIR", "artifacts")
+    if not os.path.isdir(artifact_dir):
+        warnings.append(f"ARTIFACT_DIR directory does not exist yet: {artifact_dir}")
+
+    api_token = os.environ.get("IAM_API_TOKEN", "").strip()
+    if require_api_token and not api_token:
+        errors.append("IAM_REQUIRE_API_TOKEN=true but IAM_API_TOKEN is not set.")
+    if not require_api_token and not api_token:
+        warnings.append("IAM_API_TOKEN is not set. API auth guard is disabled.")
+
+    for msg in warnings:
+        logger.warning("CONFIG WARNING: %s", msg)
+    for msg in errors:
+        logger.error("CONFIG ERROR: %s", msg)
+
+    if strict and errors:
+        raise RuntimeError(
+            "Runtime configuration validation failed. "
+            "Set IAM_STRICT_ENV_VALIDATION=false to continue in non-strict mode."
+        )
+
+
 # Recorded at module import time; health endpoint uses this for uptime reporting
 _startup_time = time.monotonic()
 
@@ -97,6 +159,7 @@ async def lifespan(app: FastAPI):
     from concurrent.futures import ThreadPoolExecutor
     from ml_pipeline.prediction_core import PredictionArtifacts
 
+    _validate_runtime_config()
     logger.info("API startup: pre-loading prediction artifacts...")
     try:
         with ThreadPoolExecutor(max_workers=1, thread_name_prefix="iam-startup") as startup_pool:

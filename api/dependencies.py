@@ -2,7 +2,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 
 # ── Thread Pool ──────────────────────────────────────────────────────────────
 # With n_jobs=1 per model call, each prediction uses ~1 CPU core at peak.
@@ -58,3 +58,36 @@ def get_artifacts() -> dict:
 # ── Annotated shorthands for route injection ─────────────────────────────────
 ArtifactsDep = Annotated[dict, Depends(get_artifacts)]
 ExecutorDep   = Annotated[ThreadPoolExecutor, Depends(get_executor)]
+
+
+def require_api_auth(
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    authorization: str | None = Header(default=None),
+) -> None:
+    """
+    Optional API auth guard.
+
+    If IAM_API_TOKEN is set, requests must provide either:
+    - X-API-Key: <token>
+    - Authorization: Bearer <token>
+    """
+    configured_token = os.environ.get("IAM_API_TOKEN", "").strip()
+    if not configured_token:
+        return
+
+    bearer_token = None
+    if authorization:
+        prefix = "bearer "
+        if authorization.lower().startswith(prefix):
+            bearer_token = authorization[len(prefix):].strip()
+
+    if x_api_key == configured_token or bearer_token == configured_token:
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Unauthorized",
+    )
+
+
+AuthDep = Annotated[None, Depends(require_api_auth)]

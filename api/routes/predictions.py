@@ -10,7 +10,7 @@ from typing import Dict
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from api.dependencies import ArtifactsDep, ExecutorDep, get_semaphore
+from api.dependencies import ArtifactsDep, AuthDep, ExecutorDep, get_semaphore
 from api.schemas import (
     PeerGroup,
     PeerInsightsRequest,
@@ -66,6 +66,7 @@ async def _update_job(job_id: str, **kwargs) -> None:
 async def predict(
     body: PredictRequest,
     request: Request,
+    _: AuthDep,
     artifacts: ArtifactsDep,
     executor: ExecutorDep,
 ):
@@ -198,6 +199,7 @@ def _sync_predict(
 async def peer_insights(
     body: PeerInsightsRequest,
     request: Request,
+    _: AuthDep,
     artifacts: ArtifactsDep,
     executor: ExecutorDep,
 ):
@@ -258,6 +260,7 @@ def _sync_peer_insights(user_id: int, entitlement_id: str) -> dict | None:
 async def submit_shap(
     body: ShapRequest,
     request: Request,
+    _: AuthDep,
     artifacts: ArtifactsDep,
     executor: ExecutorDep,
 ):
@@ -337,7 +340,7 @@ def _sync_shap(user_id: int, top_n: int, initial_candidates: int) -> str | None:
 # ── GET /predict/shap/{job_id} ────────────────────────────────────────────────
 
 @router.get("/shap/{job_id}", response_model=ShapJobStatus)
-async def get_shap_status(job_id: str):
+async def get_shap_status(job_id: str, _: AuthDep):
     """Poll the status of a submitted SHAP job."""
     async with _job_store_lock:
         job = _job_store.get(job_id)

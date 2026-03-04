@@ -1,0 +1,61 @@
+name: ml-gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  ml-metrics-gate:
+    runs-on: ubuntu-latest
+    env:
+      ENABLE_IAM_CI_GATE: ${{ secrets.ENABLE_IAM_CI_GATE }}
+      IAM_MIN_PRECISION: ${{ secrets.IAM_MIN_PRECISION }}
+      IAM_MIN_RECALL: ${{ secrets.IAM_MIN_RECALL }}
+      IAM_MIN_USER_COVERAGE: ${{ secrets.IAM_MIN_USER_COVERAGE }}
+      IAM_MIN_CATALOG_COVERAGE: ${{ secrets.IAM_MIN_CATALOG_COVERAGE }}
+      IAM_MAX_GINI: ${{ secrets.IAM_MAX_GINI }}
+      IAM_MAX_FAIRNESS_PRECISION_GAP: ${{ secrets.IAM_MAX_FAIRNESS_PRECISION_GAP }}
+      IAM_MAX_FAIRNESS_RECALL_GAP: ${{ secrets.IAM_MAX_FAIRNESS_RECALL_GAP }}
+      IAM_FAIRNESS_K_TARGET: ${{ secrets.IAM_FAIRNESS_K_TARGET }}
+      IAM_DRIFT_MEAN_THRESHOLD: ${{ secrets.IAM_DRIFT_MEAN_THRESHOLD }}
+      IAM_DRIFT_STD_THRESHOLD: ${{ secrets.IAM_DRIFT_STD_THRESHOLD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Gate disabled (no-op)
+        if: env.ENABLE_IAM_CI_GATE != 'true'
+        run: |
+          echo "CI gate disabled. Set ENABLE_IAM_CI_GATE=true to enable."
+
+      - name: Set up Python
+        if: env.ENABLE_IAM_CI_GATE == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        if: env.ENABLE_IAM_CI_GATE == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run CI gate
+        if: env.ENABLE_IAM_CI_GATE == 'true'
+        run: |
+          python -m ml_pipeline.ci_gate
+
+      - name: Run fairness evaluation (optional)
+        if: env.ENABLE_IAM_CI_GATE == 'true'
+        run: |
+          python -m ml_pipeline.evaluate_fairness \
+            --max-precision-gap "${IAM_MAX_FAIRNESS_PRECISION_GAP:-0.30}" \
+            --max-recall-gap "${IAM_MAX_FAIRNESS_RECALL_GAP:-0.30}" \
+            --k-target "${IAM_FAIRNESS_K_TARGET:-10}"
+
+      - name: Run drift monitor (optional)
+        if: env.ENABLE_IAM_CI_GATE == 'true'
+        run: |
+          python -m ml_pipeline.drift_monitor \
+            --mean-threshold "${IAM_DRIFT_MEAN_THRESHOLD:-0.25}" \
+            --std-threshold "${IAM_DRIFT_STD_THRESHOLD:-0.50}"

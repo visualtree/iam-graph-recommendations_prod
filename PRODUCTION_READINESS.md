@@ -84,6 +84,7 @@ Status legend:
 3. Drift monitoring policy and rollback criteria: PARTIAL
    - Baseline stats saved during training: `drift_baseline_candidate.json`, `drift_baseline_reranker.json`
    - Drift check: `python -m ml_pipeline.drift_monitor`
+   - Response policy: if drift report shows any drifted features, retrain and review data changes
    - Fairness evaluation by group: `python -m ml_pipeline.evaluate_fairness`
 
 ## Immediate Next Actions (Priority Order)
@@ -99,10 +100,15 @@ Status legend:
 3. Add release manifest (`model_version`, `git_sha`, `data_timestamp`) in artifacts.
 4. Add CI command workflow for train/eval thresholds and API smoke tests.
    - Implemented: `python -m ml_pipeline.ci_gate`
+   - GitHub Actions workflow: `.github/workflows/ci-ml-gate.yml`
+   - Enable by setting repo secret `ENABLE_IAM_CI_GATE=true`
    - Optional: set env thresholds for CI:
      - `IAM_MIN_PRECISION`, `IAM_MIN_RECALL`
      - `IAM_MIN_USER_COVERAGE`, `IAM_MIN_CATALOG_COVERAGE`
      - `IAM_MAX_GINI`
+   - Optional fairness/drift thresholds:
+     - `IAM_MAX_FAIRNESS_PRECISION_GAP`, `IAM_MAX_FAIRNESS_RECALL_GAP`, `IAM_FAIRNESS_K_TARGET`
+     - `IAM_DRIFT_MEAN_THRESHOLD`, `IAM_DRIFT_STD_THRESHOLD`
 
 ## Release Gate Proposal
 

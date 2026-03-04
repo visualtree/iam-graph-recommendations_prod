@@ -61,10 +61,13 @@ def main() -> None:
     parser.add_argument("--groups", type=str, default="NOrganisationId,NBusinessRoleId,ManagerId")
     parser.add_argument("--users", type=int, default=100)
     parser.add_argument("--k", nargs="+", type=int, default=[5, 10, 20])
+    parser.add_argument("--k-target", type=int, default=10)
     parser.add_argument("--holdout-ratio", type=float, default=0.3)
     parser.add_argument("--min-truth", type=int, default=3)
     parser.add_argument("--initial-candidates", type=int, default=100)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--max-precision-gap", type=float, default=0.30)
+    parser.add_argument("--max-recall-gap", type=float, default=0.30)
     args = parser.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -87,18 +90,38 @@ def main() -> None:
         "groups": {},
         "holdout_summary_path": os.path.join(args.out_dir, "metrics_holdout_summary.csv"),
         "holdout_per_user_path": os.path.join(args.out_dir, "metrics_holdout_per_user.csv"),
+        "thresholds": {
+            "k_target": int(args.k_target),
+            "max_precision_gap": float(args.max_precision_gap),
+            "max_recall_gap": float(args.max_recall_gap),
+        },
     }
+
+    failures = []
 
     for col in group_cols:
         grouped = _group_metrics(per_user_df, users_df, col)
         out_path = os.path.join(args.out_dir, f"metrics_fairness_by_{col}.csv")
         if not grouped.empty:
             grouped.to_csv(out_path, index=False)
+        disparity = _summarize_disparity(grouped)
         fairness_summary["groups"][col] = {
             "status": "ok" if not grouped.empty else "skipped",
             "path": out_path if not grouped.empty else None,
-            "disparity": _summarize_disparity(grouped),
+            "disparity": disparity,
         }
+        if disparity.get("status") == "ok":
+            by_k = disparity.get("by_k", {})
+            k_data = by_k.get(int(args.k_target))
+            if k_data:
+                if k_data["precision_gap"] > args.max_precision_gap:
+                    failures.append(
+                        f"{col}: precision_gap {k_data['precision_gap']:.4f} > {args.max_precision_gap:.4f}"
+                    )
+                if k_data["recall_gap"] > args.max_recall_gap:
+                    failures.append(
+                        f"{col}: recall_gap {k_data['recall_gap']:.4f} > {args.max_recall_gap:.4f}"
+                    )
 
     summary_path = os.path.join(args.out_dir, "metrics_fairness_summary.json")
     with open(summary_path, "w", encoding="utf-8") as f:
@@ -107,6 +130,11 @@ def main() -> None:
     print("\nFAIRNESS SUMMARY")
     print(json.dumps(fairness_summary, indent=2))
     print(f"\nSaved: {summary_path}")
+    if failures:
+        print("\nFAIRNESS GATE: FAIL")
+        for f in failures:
+            print(f" - {f}")
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":

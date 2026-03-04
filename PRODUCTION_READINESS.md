@@ -81,7 +81,10 @@ Status legend:
 
 1. Versioned artifact manifest tied to commit SHA: PARTIAL
 2. Stage -> prod promotion workflow: TODO
-3. Drift monitoring policy and rollback criteria: TODO
+3. Drift monitoring policy and rollback criteria: PARTIAL
+   - Baseline stats saved during training: `drift_baseline_candidate.json`, `drift_baseline_reranker.json`
+   - Drift check: `python -m ml_pipeline.drift_monitor`
+   - Fairness evaluation by group: `python -m ml_pipeline.evaluate_fairness`
 
 ## Immediate Next Actions (Priority Order)
 
@@ -95,6 +98,11 @@ Status legend:
 - Exits non-zero on threshold breach (p95/p99/error-rate).
 3. Add release manifest (`model_version`, `git_sha`, `data_timestamp`) in artifacts.
 4. Add CI command workflow for train/eval thresholds and API smoke tests.
+   - Implemented: `python -m ml_pipeline.ci_gate`
+   - Optional: set env thresholds for CI:
+     - `IAM_MIN_PRECISION`, `IAM_MIN_RECALL`
+     - `IAM_MIN_USER_COVERAGE`, `IAM_MIN_CATALOG_COVERAGE`
+     - `IAM_MAX_GINI`
 
 ## Release Gate Proposal
 

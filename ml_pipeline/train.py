@@ -354,6 +354,21 @@ def _fit_calibrator(model, X_val, y_val, method: str) -> dict:
     return {"status": "ok", "method": method, "calibrator": calibrator}
 
 
+def _compute_feature_stats(X: pd.DataFrame) -> dict:
+    stats = {}
+    if X is None or X.empty:
+        return stats
+    desc = X.describe(percentiles=[0.5, 0.95]).T
+    for col, row in desc.iterrows():
+        stats[str(col)] = {
+            "mean": float(row.get("mean", 0.0)),
+            "std": float(row.get("std", 0.0)),
+            "p50": float(row.get("50%", 0.0)),
+            "p95": float(row.get("95%", 0.0)),
+        }
+    return stats
+
+
 def _aligned_labeled_df_for_features(labeled_df: pd.DataFrame, X: pd.DataFrame, model_name: str) -> pd.DataFrame:
     """Align labeled pairs to feature matrix row-count for downstream split diagnostics."""
     labeled_aligned = labeled_df.reset_index(drop=True)
@@ -455,6 +470,9 @@ def run_training() -> None:
     X_cand = X_cand.apply(pd.to_numeric, errors="coerce").fillna(0.0)
     if y_cand is None or X_cand.empty:
         raise RuntimeError("Candidate feature generation failed: empty matrix or labels")
+    cand_baseline = _compute_feature_stats(X_cand)
+    with open(os.path.join(config.ARTIFACT_DIR, "drift_baseline_candidate.json"), "w", encoding="utf-8") as f:
+        json.dump(cand_baseline, f, indent=2)
 
     cand_pos = int((y_cand == 1).sum())
     cand_neg = int((y_cand == 0).sum())
@@ -518,6 +536,9 @@ def run_training() -> None:
     X_rerank = X_rerank.apply(pd.to_numeric, errors="coerce").fillna(0.0)
     if y_rerank is None or X_rerank.empty:
         raise RuntimeError("Reranker feature generation failed: empty matrix or labels")
+    rerank_baseline = _compute_feature_stats(X_rerank)
+    with open(os.path.join(config.ARTIFACT_DIR, "drift_baseline_reranker.json"), "w", encoding="utf-8") as f:
+        json.dump(rerank_baseline, f, indent=2)
 
     rerank_pos = int((y_rerank == 1).sum())
     rerank_neg = int((y_rerank == 0).sum())
@@ -648,6 +669,10 @@ def run_training() -> None:
             "path": os.path.join(config.ARTIFACT_DIR, "user_splits.json")
             if user_splits.get("status") == "ok"
             else None,
+        },
+        "drift_baselines": {
+            "candidate": os.path.join(config.ARTIFACT_DIR, "drift_baseline_candidate.json"),
+            "reranker": os.path.join(config.ARTIFACT_DIR, "drift_baseline_reranker.json"),
         },
         "reranker_monotone_constraints_positive_cols": MONOTONE_POSITIVE_PEER_RATE_COLS,
         "reranker_monotone_constraints_vector": list(reranker_monotone_constraints),
